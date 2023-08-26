@@ -1,99 +1,124 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <cmath>
+#include <sstream>
 #include <iomanip>
-#include <unordered_set>
+#include <cmath>
+#include <algorithm>
 
-class ExemptItems {
+using namespace std;
+
+class SalesTax {
 public:
-    void insertItem(const std::string& category, const std::string& itemName) {
-        itemCategories[itemName] = category;
+    double calculateTax(double price, double taxRate) {
+        return price * taxRate / 100.0; // Calculate tax amount
     }
 
-    bool isExempt(const std::string& itemName) const {
-        auto it = itemCategories.find(itemName);
-        return it != itemCategories.end();
+    double roundUpToNearest0_05(double value) {
+        return ceil(value * 20) / 20.0;
     }
-
-private:
-    std::unordered_map<std::string, std::string> itemCategories; // Maps item name to its category
 };
 
 class Item {
+    vector<string> exemptItems = {"book", "medicine", "pills", "syrup", "food", "icecream", "chocolate"};
+
 public:
-    Item(const std::string& name, double price, bool isImported)
-        : name(name), price(price), isImported(isImported) {}
-
-    double calculateTax(const ExemptItems& exemptItems) const {
-        double tax = 0.0;
-        if (isImported) {
-            tax += price * 0.05;
-        }
-        if (!exemptItems.isExempt(name)) {
-            tax += price * 0.1;
-        }
-        return roundTax(tax);
+    void addToExemptItemsList(string exemptItem) {
+        exemptItems.push_back(exemptItem);
     }
 
-    double getTotalPrice(const ExemptItems& exemptItems) const {
-        return price + calculateTax(exemptItems);
-    }
+    bool isItemExempt(const string& itemLine) {
+        // Convert itemLine to lowercase for case-insensitive comparison
+        string lowerItemLine = itemLine;
+        transform(lowerItemLine.begin(), lowerItemLine.end(), lowerItemLine.begin(), ::tolower);
 
-    void printReceipt(const ExemptItems& exemptItems) const {
-        std::cout << "1 " << name << ": " << std::fixed << std::setprecision(2) << getTotalPrice(exemptItems) << std::endl;
-    }
+        for (const string& exemptItem : exemptItems) {
+            // Convert exemptItem to lowercase for case-insensitive comparison
+            string lowerExemptItem = exemptItem;
+            transform(lowerExemptItem.begin(), lowerExemptItem.end(), lowerExemptItem.begin(), ::tolower);
 
-private:
-    const std::string name;
-    const double price;
-    const bool isImported;
-
-    double roundTax(double tax) const {
-        return std::ceil(tax * 20) / 20;
-    }
-};
-
-class ShoppingCart {
-public:
-    void addItem(const Item& item) {
-        items.push_back(item);
-    }
-
-    void generateReceipt(const ExemptItems& exemptItems) const {
-        double totalTax = 0.0;
-        double totalPrice = 0.0;
-
-        for (const Item& item : items) {
-            item.printReceipt(exemptItems);
-            totalTax += item.calculateTax(exemptItems);
-            totalPrice += item.getTotalPrice(exemptItems);
+            if (lowerItemLine.find(lowerExemptItem) != string::npos) {
+                return true;
+            }
         }
 
-        std::cout << "Sales Taxes: " << std::fixed << std::setprecision(2) << totalTax << std::endl;
-        std::cout << "Total: " << totalPrice << std::endl;
+        return false;
     }
-
-private:
-    std::vector<Item> items;
 };
 
 int main() {
-    ExemptItems exemptItems;
-    exemptItems.insertItem("food", "chocolate");
-    exemptItems.insertItem("food", "food");
-    exemptItems.insertItem("book", "book");
-    exemptItems.insertItem("medical", "pill");
+    SalesTax stax;
+    Item item;
+    vector<string> inputLines;
+    string line;
 
-    ShoppingCart cart1;
-    cart1.addItem(Item("book", 12.49, false));
-    cart1.addItem(Item("music CD", 14.99, false));
-    cart1.addItem(Item("chocolate bar", 0.85, false));
+    // Reading input lines until end-of-file
+    while (getline(cin, line)) {
+        if (line.empty()) break;
+        inputLines.push_back(line);
+    }
 
-    std::cout << "Output 1:" << std::endl;
-    cart1.generateReceipt(exemptItems);
+    double basketTotal = 0.0;
+    double basketTax = 0.0; // Accumulator for total tax
 
-    // Repeat the above for Input 2 and Input 3 using appropriate items and prices
+    for (const string& input : inputLines) {
+        istringstream iss(input);
+        int quantity;
+        double price;
+        string itemName;
+
+        // Parsing input
+        iss >> quantity;
+        string unit;
+        string at;
+        string token;
+        while (iss >> token) {
+            if (token == "at") {
+                break;
+            }
+            itemName += token;
+            itemName += " ";
+        }
+        iss >> price;
+
+        // Checking if item is imported
+        bool isImported = (itemName.find("imported") != string::npos);
+
+        // Checking for exemptions
+        bool isExempt = item.isItemExempt(itemName);
+
+        // Calculating basic sales tax
+        double basicTax = 0.0;
+        if (!isExempt) {
+            basicTax += stax.calculateTax(price, 10);
+        }
+
+        // Calculating import duty
+        double importTax = 0.0;
+        if (isImported) {
+            importTax += stax.calculateTax(price, 5);
+        }
+
+        // Total tax for the item
+        double totalTax = basicTax + importTax;
+
+        // Rounding tax to nearest 0.05
+        totalTax = stax.roundUpToNearest0_05(totalTax);
+
+        // Total price for the item including tax
+        double totalPrice = price + totalTax;
+
+        // Accumulating total tax and total cost for the basket
+        basketTax += totalTax;
+        basketTotal += totalPrice;
+
+        // Printing the output for each item
+        cout << quantity << " " << itemName << ": " << fixed << setprecision(2) << totalPrice << endl;
+    }
+
+    // Printing total taxes and total cost of the basket
+    cout << "Sales Taxes: " << fixed << setprecision(2) << basketTax << endl;
+    cout << "Total: " << fixed << setprecision(2) << basketTotal << endl;
 
     return 0;
 }
